@@ -160,7 +160,21 @@
 
     <script>
         // Gerenciamento de Temas
-   // Lógica do Timer e Estados
+        function setTheme(theme) {
+            document.body.setAttribute('data-theme', theme);
+            localStorage.setItem('pausa_studio_theme', theme);
+
+            const buttons = document.querySelectorAll('.theme-btn');
+            buttons.forEach(btn => btn.classList.remove('active'));
+            if (theme === 'light') buttons[0].classList.add('active');
+            if (theme === 'dark') buttons[1].classList.add('active');
+            if (theme === 'black') buttons[2].classList.add('active');
+        }
+
+        const savedTheme = localStorage.getItem('pausa_studio_theme') || 'light';
+        setTheme(savedTheme);
+
+        // Lógica do Timer e Estados
         let timerType = 'auto';
         let isRunning = false;
         let isFocusState = true;
@@ -270,7 +284,7 @@
                 btn.innerText = isFocusState ? 'Retomar Foco' : 'Retomar Pausa';
                 btn.classList.remove('paused');
             } else {
-                // SOMENTE INICIA/RETOMA
+                // 🔊 SOMENTE INICIA/RETOMA
                 playSound('start');
 
                 isRunning = true;
@@ -316,6 +330,168 @@
             timeLeft = totalTimeSeconds;
             updateDisplay();
         }
+
+        function handleTimerComplete() {
+            clearInterval(timerInterval);
+            isRunning = false;
+
+            // ⏰ ALARME DE DESPERTADOR AO FINAL DO CICLO
+            playSound('alarm');
+
+            if (isFocusState) {
+                isFocusState = false;
+                document.getElementById('timerStatusBadge').innerHTML = `
+                    <svg class="inline-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                    <span>Hora da Pausa</span>
+                `;
+                document.getElementById('timerStatusBadge').classList.add('break-badge');
+                document.getElementById('startBtn').innerText = 'Começar Pausa';
+                document.getElementById('startBtn').classList.remove('paused');
+                
+                if (timerType === 'auto') {
+                    const focusMin = parseInt(document.getElementById('focusSlider').value);
+                    let pauseMin = Math.round(focusMin / 3);
+                    if (pauseMin < 2) pauseMin = 2;
+                    totalTimeSeconds = pauseMin * 60;
+                } else {
+                    const pauseMin = parseInt(document.getElementById('customPause').value) || 5;
+                    totalTimeSeconds = pauseMin * 60;
+                }
+                timeLeft = totalTimeSeconds;
+                updateDisplay();
+
+                completedCycles++;
+                addCeramicPiece();
+
+                openBreakModal();
+            } else {
+                isFocusState = true;
+                document.getElementById('timerStatusBadge').innerHTML = `
+                    <svg class="inline-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    <span>Modo Foco</span>
+                `;
+                document.getElementById('timerStatusBadge').classList.remove('break-badge');
+                document.getElementById('startBtn').innerText = 'Começar Foco';
+                document.getElementById('startBtn').classList.remove('paused');
+                
+                if (timerType === 'auto') {
+                    const focusMin = parseInt(document.getElementById('focusSlider').value);
+                    totalTimeSeconds = focusMin * 60;
+                } else {
+                    const focusMin = parseInt(document.getElementById('customFocus').value) || 25;
+                    totalTimeSeconds = focusMin * 60;
+                }
+                timeLeft = totalTimeSeconds;
+                updateDisplay();
+
+                openFocusModal();
+            }
+        }
+
+        function openBreakModal() {
+            getNewSuggestion();
+            document.getElementById('breakModal').classList.remove('hidden');
+        }
+
+        function closeBreakModal() {
+            document.getElementById('breakModal').classList.add('hidden');
+            if (!isRunning) {
+                toggleTimer();
+            }
+        }
+
+        function openFocusModal() {
+            document.getElementById('focusModal').classList.remove('hidden');
+        }
+
+        function closeFocusModal() {
+            document.getElementById('focusModal').classList.add('hidden');
+            if (!isRunning) {
+                toggleTimer();
+            }
+        }
+
+        function getNewSuggestion() {
+            const randomIndex = Math.floor(Math.random() * suggestions.length);
+            document.getElementById('suggestionText').innerText = suggestions[randomIndex];
+        }
+
+        function addCeramicPiece() {
+            const shelf = document.getElementById('ceramicShelf');
+            if (completedCycles === 1) {
+                shelf.innerHTML = '';
+            }
+            const randomPiece = ceramicPieces[Math.floor(Math.random() * ceramicPieces.length)];
+            
+            const shelfLevel = document.createElement('div');
+            shelfLevel.className = 'shelf-level';
+            shelfLevel.innerHTML = `
+                <div class="ceramic-item-stand">
+                    ${randomPiece.svg}
+                    <span class="piece-title">${randomPiece.title}</span>
+                </div>
+                <div class="wooden-shelf-bar"></div>
+            `;
+            shelf.appendChild(shelfLevel);
+        }
+
+        // =============================================
+        // 🔊 SISTEMA DE ÁUDIO (INÍCIO SUAVE & DESPERTADOR)
+        // =============================================
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        function createBeep(freq, time, duration) {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            
+            osc.type = 'square'; // Timbre clássico de despertador
+            osc.frequency.setValueAtTime(freq, time);
+            
+            gain.gain.setValueAtTime(0.25, time);
+            gain.gain.exponentialRampToValueAtTime(0.001, time + duration);
+
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            osc.start(time);
+            osc.stop(time + duration);
+        }
+
+        function playSound(type) {
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+
+            if (type === 'start') {
+                // Som suave de confirmação (início/retomada)
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(440, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(880, audioCtx.currentTime + 0.15);
+                gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+                osc.start(audioCtx.currentTime);
+                osc.stop(audioCtx.currentTime + 0.15);
+
+            } else if (type === 'alarm') {
+                // ⏰ Alarme de Despertador (4 sequências de "bi-bi")
+                const now = audioCtx.currentTime;
+                const beepDuration = 0.12;
+
+                for (let cycle = 0; cycle < 4; cycle++) {
+                    const startTime = now + (cycle * 0.65);
+                    createBeep(880, startTime, beepDuration);
+                    createBeep(880, startTime + 0.15, beepDuration);
+                }
+            }
+        }
+
+        // Inicializar display
+        updateDisplay();
     </script>
 </body>
 </html>
