@@ -108,11 +108,11 @@
                     <div class="custom-inputs">
                         <div class="input-field">
                             <label>Foco (min):</label>
-                            <input type="number" id="customFocus" value="25" min="1" max="120" class="input-number">
+                            <input type="number" id="customFocus" value="25" min="1" max="120" class="input-number" onchange="applyCustomTimes()">
                         </div>
                         <div class="input-field">
                             <label>Pausa (min):</label>
-                            <input type="number" id="customPause" value="5" min="1" max="60" class="input-number">
+                            <input type="number" id="customPause" value="5" min="1" max="60" class="input-number" onchange="applyCustomTimes()">
                         </div>
                     </div>
                 </div>
@@ -235,10 +235,16 @@
         }
 
         function applyCustomTimes() {
-            if (!isRunning && isFocusState) {
-                const focusMin = parseInt(document.getElementById('customFocus').value) || 25;
-                totalTimeSeconds = focusMin * 60;
-                timeLeft = totalTimeSeconds;
+            if (!isRunning) {
+                if (isFocusState) {
+                    const focusMin = parseInt(document.getElementById('customFocus').value) || 25;
+                    totalTimeSeconds = focusMin * 60;
+                    timeLeft = totalTimeSeconds;
+                } else {
+                    const pauseMin = parseInt(document.getElementById('customPause').value) || 5;
+                    totalTimeSeconds = pauseMin * 60;
+                    timeLeft = totalTimeSeconds;
+                }
                 updateDisplay();
             }
         }
@@ -255,7 +261,7 @@
 
             // Título da aba
             const stateLabel = isFocusState ? 'Foco' : 'Pausa';
-            document.title = `${timeString} (${stateLabel}) - Pausa Studio`;
+            document.title = `${timeString} (${stateLabel}) - POMOME`;
 
             // SVG Círculo
             const circle = document.getElementById('progressRing');
@@ -263,7 +269,7 @@
             const circumference = radius * 2 * Math.PI;
             circle.style.strokeDasharray = `${circumference} ${circumference}`;
             
-            const progress = timeLeft / totalTimeSeconds;
+            const progress = totalTimeSeconds > 0 ? (timeLeft / totalTimeSeconds) : 0;
             const offset = circumference - progress * circumference;
             circle.style.strokeDashoffset = offset;
         }
@@ -271,15 +277,12 @@
         function toggleTimer() {
             const btn = document.getElementById('startBtn');
             if (isRunning) {
+                // APENAS PAUSA O TIMER (Mantém o timeLeft atual)
                 clearInterval(timerInterval);
                 isRunning = false;
                 btn.innerText = isFocusState ? 'Retomar Foco' : 'Retomar Pausa';
                 btn.classList.remove('paused');
             } else {
-                if (timerType === 'custom' && isFocusState) {
-                    applyCustomTimes();
-                }
-
                 // 🔊 Som suave de início/retomada
                 playSound('start');
 
@@ -301,7 +304,7 @@
         function resetTimer() {
             clearInterval(timerInterval);
             isRunning = false;
-            document.getElementById('startBtn').innerText = 'Começar Foco';
+            document.getElementById('startBtn').innerText = isFocusState ? 'Começar Foco' : 'Começar Pausa';
             document.getElementById('startBtn').classList.remove('paused');
             
             if (isFocusState) {
@@ -311,6 +314,16 @@
                 } else {
                     const focusMin = parseInt(document.getElementById('customFocus').value) || 25;
                     totalTimeSeconds = focusMin * 60;
+                }
+            } else {
+                if (timerType === 'auto') {
+                    const focusMin = parseInt(document.getElementById('focusSlider').value);
+                    let pauseMin = Math.round(focusMin / 3);
+                    if (pauseMin < 2) pauseMin = 2;
+                    totalTimeSeconds = pauseMin * 60;
+                } else {
+                    const pauseMin = parseInt(document.getElementById('customPause').value) || 5;
+                    totalTimeSeconds = pauseMin * 60;
                 }
             }
             timeLeft = totalTimeSeconds;
@@ -331,6 +344,8 @@
                     <span>Hora da Pausa</span>
                 `;
                 document.getElementById('timerStatusBadge').classList.add('break-badge');
+                document.getElementById('startBtn').innerText = 'Começar Pausa';
+                document.getElementById('startBtn').classList.remove('paused');
                 
                 if (timerType === 'auto') {
                     const focusMin = parseInt(document.getElementById('focusSlider').value);
@@ -356,6 +371,7 @@
                 `;
                 document.getElementById('timerStatusBadge').classList.remove('break-badge');
                 document.getElementById('startBtn').innerText = 'Começar Foco';
+                document.getElementById('startBtn').classList.remove('paused');
                 
                 if (timerType === 'auto') {
                     const focusMin = parseInt(document.getElementById('focusSlider').value);
